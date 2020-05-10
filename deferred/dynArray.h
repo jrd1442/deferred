@@ -10,9 +10,7 @@ struct DynArray
         arr = std::make_unique<T[]>(capacity);
     };
 
-    ~DynArray()
-    {
-    }
+    ~DynArray() = default;
 
     T& operator[] (const uint idx) const
     {
@@ -20,22 +18,18 @@ struct DynArray
         return arr[idx];
     }
 
-    void push(T& val)
+    void push(T val) // allows for more flexibility at the call site
     {
         if (size == capacity)
         {
             // resize
             capacity *= 2;
-            std::unique_ptr<T[]> tarr = std::make_unique<T[]>(capacity);
-            for (uint i = 0; i < size; i++)
-            {
-                // loop to not mess up com object ref counts
-                tarr[i] = arr[i];
-            }
+            std::unique_ptr<T[]> tarr = std::make_unique<T[]>(capacity); // nitpick: 'auto tarr =' because we can tell it's a unique_ptr
+            std::move(std::begin(arr), std::end(arr), std::begin(tarr));
             arr = std::move(tarr);
         }
         assert(size < capacity);
-        arr[size] = val; // todo: use placement new
+        arr[size] = std::move(val);
         size++;
     }
 
@@ -44,34 +38,33 @@ struct DynArray
         if (arr != nullptr)
         {
             size = 0;
-            capacity = 16;
-            arr = std::make_unique<T[]>(capacity);
+            // maybe not
+            //capacity = 16;
+            //arr = std::make_unique<T[]>(capacity);  
         }
     }
 
-    DynArray(const DynArray& other)
+    DynArray(const DynArray& other) : size(other.size), capacity(other.capacity)
     {
-        size = other.size;
-        capacity = other.capacity;
         // make deep copy
         arr = std::make_unique<T[]>(other.capacity);
-
+        // nitpick: replace with:
+        // std::copy(std::begin(other.arr), std::end(other.arr), std::begin(arr));
         for (uint i = 0; i < other.size; i++)
         {
             arr[i] = other.arr[i];
         }
     }
 
-    DynArray(DynArray&& other) noexcept
+    DynArray(DynArray&& other) noexcept : size(other.size), capacity(other.capacity), arr(std::move(other.arr))
     {
-        size = other.size;
-        capacity = other.capacity;
-        arr = std::move(other.arr);
-        other.arr = nullptr;
-        other.capacity = 0;
-        other.size = 0;
+        //other.arr = nullptr;
+        //other.capacity = 0;
+        //other.size = 0;
     }
 
+    // i think you can leave this out, compiler will use the copy ctor, maybe
+    /*
     DynArray& operator=(const DynArray& rhs)
     {
         assert(arr != nullptr);
@@ -86,6 +79,7 @@ struct DynArray
         return *this;
     }
 
+    // same, but with move ctor
     DynArray& operator=(const DynArray&& rhs)
     {
         assert(0); // not tested
@@ -97,6 +91,7 @@ struct DynArray
         rhs.size = 0;
         return *this;
     }
+    */
 
     std::unique_ptr<T[]> arr;
     uint capacity;
